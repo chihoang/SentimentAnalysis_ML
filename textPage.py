@@ -9,6 +9,10 @@ import plotly.graph_objects as go
 import pickle
 import joblib 
 
+import torch
+from torch import nn
+from transformers import BertTokenizer, BertModel
+
 
 def plotPie(labels, values):
     fig = go.Figure(
@@ -32,9 +36,10 @@ def getPolarity(userText):
     else:
         return polarity, subjectivity, "Negative"
 
+
 def getSentiments(userText, type):
 
-    if(type == 'Positive/Negative/Neutral - TextBlob'):
+    if(type == 'TextBlob built-in library'):
 
         # using TextBlob
         polarity, subjectivity, status = getPolarity(userText)
@@ -50,7 +55,9 @@ def getSentiments(userText, type):
         col3.metric("Result", status, None)
         st.image(image, caption=status)
 
-    elif(type == 'Positive/Negative/Neutral - Our built ML model'): 
+
+
+    elif(type == 'My classical ML model: SVC + Bag of Words'): 
 
         # using our built ML model?
         with open('vectorizer_bow.pickle', 'rb') as file:
@@ -84,6 +91,76 @@ def getSentiments(userText, type):
         st.image(image, caption=status) 
 
 
+
+    elif(type == 'My fine-tune distilBERT model'):
+
+        class BERTClassifier(nn.Module):
+            def __init__(self, bert_model_name, num_classes):
+                super(BERTClassifier, self).__init__()
+                self.bert = BertModel.from_pretrained(bert_model_name)
+                self.dropout = nn.Dropout(0.1)
+                self.fc = nn.Linear(self.bert.config.hidden_size, num_classes)
+
+            def forward(self, input_ids, attention_mask):
+                    outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+                    pooled_output = outputs.pooler_output
+                    x = self.dropout(pooled_output)
+                    logits = self.fc(x)
+                    return logits
+
+        def predict_sentiment(text, model, tokenizer, device, max_length=128):
+            model.eval()
+            encoding = tokenizer(text, return_tensors='pt', max_length=max_length, padding='max_length', truncation=True)
+            input_ids = encoding['input_ids'].to(device)
+            attention_mask = encoding['attention_mask'].to(device)
+
+            with torch.no_grad():
+                    outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+                    _, preds = torch.max(outputs, dim=1)
+
+            return "Positive" if preds.item() == 2 else "Neutral" if preds.item() == 1 else "Negative"         
+
+        ## define some variables used here
+        bert_model_name = 'bert-base-uncased'
+        num_classes = 3        
+
+        ## load saved trained model 
+        if 'model' not in locals():
+
+            # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            device = torch.device("cpu")
+            model  = BERTClassifier(bert_model_name, num_classes).to(device)
+            
+            model.load_state_dict(torch.load('sentiment_classifier_3.pth', map_location=device) )
+            model.eval()
+
+            tokenizer = BertTokenizer.from_pretrained(bert_model_name)
+
+
+        ## prediction 
+        sentiment = predict_sentiment(userText, model, tokenizer, device)
+
+
+        ## convert output to string
+        status = sentiment
+        if status == 'Negative':
+            ## i.e. negative             
+            image = Image.open('./images/negative.PNG')
+
+        elif status == 'Neutral':
+            ## i.e. neutral             
+            image = Image.open('./images/neutral.PNG')
+
+        elif status == 'Positive':
+            ## i.e. positive 
+            image = Image.open('./images/positive.PNG')
+
+        # col1, col2 = st.columns(2)
+        # col1.metric("Nothing1", None)
+        # col2.metric("Nothing2", None)
+        st.image(image, caption=status) 
+
+
     elif(type == 'Happy/Sad/Angry/Fear/Surprise - text2emotion'):
         emotion = dict(te.get_emotion(userText))
         col1, col2, col3, col4, col5 = st.columns(5)
@@ -108,11 +185,11 @@ def renderPage():
     userText = st.text_input('User Input', placeholder='Input text HERE')
     st.text("")
 
-    # type = 'Positive/Negative/Neutral - TextBlob'
+    # type = 'TextBlob built-in library'
 
     type = st.selectbox(
      'Type of analysis',
-     ('Positive/Negative/Neutral - Our built ML model', 'Positive/Negative/Neutral - TextBlob'))    
+     ('My fine-tune distilBERT model', 'My classical ML model: SVC + Bag of Words', 'TextBlob built-in library') )    
 
     # type = st.selectbox(
     #  'Type of analysis',

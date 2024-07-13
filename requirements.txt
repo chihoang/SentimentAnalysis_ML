@@ -1,6 +1,7 @@
 opencv-contrib-python==4.5.5.64
 opencv-python==4.5.5.64
-streamlit==1.8.1
+#streamlit==1.8.1
+streamlit
 streamlit-modal==0.0.5
 streamlit-option-menu==0.3.2
 text2emotion==0.0.5
@@ -18,6 +19,10 @@ opencv-contrib-python==4.5.5.64
 opencv-python-headless==4.5.5.64
 tensorflow
 sacremoses==0.0.53
+#-f https://data.pyg.org/whl/torch-1.13.0+cpu.html
+torch
+#torchvision
+
 
 # absl-py==1.0.0
 # alabaster @ file:///home/ktietz/src/ci/alabaster_1611921544520/work
