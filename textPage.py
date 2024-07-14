@@ -12,6 +12,7 @@ import joblib
 import torch
 from torch import nn
 from transformers import BertTokenizer, BertModel
+import gdown 
 
 
 def plotPie(labels, values):
@@ -37,7 +38,8 @@ def getPolarity(userText):
         return polarity, subjectivity, "Negative"
 
 
-def getSentiments(userText, type):
+def getSentiments(userText, type, model, tokenizer, device):
+
 
     if(type == 'TextBlob built-in library'):
 
@@ -63,11 +65,11 @@ def getSentiments(userText, type):
         with open('vectorizer_bow.pickle', 'rb') as file:
             vectorizer_fit = pickle.load(file)
         # vectorizer_fit = pickle.load('vectorizer_bow.pickle')
-        model = joblib.load('svc_model.pkl')
+        model_ml = joblib.load('svc_model.pkl')
 
         x_test = vectorizer_fit.transform([userText]) 
 
-        y_test = model.predict(x_test)[0]
+        y_test = model_ml.predict(x_test)[0]
 
         ## convert output to string
         if y_test==0:
@@ -94,22 +96,9 @@ def getSentiments(userText, type):
 
     elif(type == 'My fine-tune distilBERT model'):
 
-        class BERTClassifier(nn.Module):
-            def __init__(self, bert_model_name, num_classes):
-                super(BERTClassifier, self).__init__()
-                self.bert = BertModel.from_pretrained(bert_model_name)
-                self.dropout = nn.Dropout(0.1)
-                self.fc = nn.Linear(self.bert.config.hidden_size, num_classes)
-
-            def forward(self, input_ids, attention_mask):
-                    outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-                    pooled_output = outputs.pooler_output
-                    x = self.dropout(pooled_output)
-                    logits = self.fc(x)
-                    return logits
 
         def predict_sentiment(text, model, tokenizer, device, max_length=128):
-            model.eval()
+            # model.eval()
             encoding = tokenizer(text, return_tensors='pt', max_length=max_length, padding='max_length', truncation=True)
             input_ids = encoding['input_ids'].to(device)
             attention_mask = encoding['attention_mask'].to(device)
@@ -118,23 +107,22 @@ def getSentiments(userText, type):
                     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
                     _, preds = torch.max(outputs, dim=1)
 
-            return "Positive" if preds.item() == 2 else "Neutral" if preds.item() == 1 else "Negative"         
-
-        ## define some variables used here
-        bert_model_name = 'bert-base-uncased'
-        num_classes = 3        
-
-        ## load saved trained model 
-        if 'model' not in locals():
-
-            # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            device = torch.device("cpu")
-            model  = BERTClassifier(bert_model_name, num_classes).to(device)
+            print(f'\npreds = {preds}')
+            print(f'\npreds.item() = {preds.item()}')
+            print("Shape of preds:", preds.shape)
+            print("Size of preds:", preds.size())
+            print("Data type of preds:", preds.dtype)
+            print("Device of preds:", preds.device)
+            print("First element of preds:", preds[0].item())
+            print("Preds as a NumPy array:", preds.numpy())
+            print("Preds as a list:", preds.tolist())
             
-            model.load_state_dict(torch.load('sentiment_classifier_3.pth', map_location=device) )
-            model.eval()
+            # print("Mean of preds:", preds.mean().item())
+            # print("Max of preds:", preds.max().item())
+            # print("Min of preds:", preds.min().item())
+            # print("Sum of preds:", preds.sum().item())
 
-            tokenizer = BertTokenizer.from_pretrained(bert_model_name)
+            return "Positive" if preds.item() == 2 else "Neutral" if preds.item() == 1 else "Negative"         
 
 
         ## prediction 
@@ -173,6 +161,8 @@ def getSentiments(userText, type):
         
 
 def renderPage():
+
+
     # st.title("Sentiment Analysis Demo 😊😐😕😡")
     st.title("Sentiment Analysis Demo")
     components.html("""<hr style="height:3px;border:none;color:#333;background-color:#333; margin-bottom: 10px" /> """)
@@ -187,6 +177,7 @@ def renderPage():
 
     # type = 'TextBlob built-in library'
 
+
     type = st.selectbox(
      'Type of analysis',
      ('My fine-tune distilBERT model', 'My classical ML model: SVC + Bag of Words', 'TextBlob built-in library') )    
@@ -196,11 +187,70 @@ def renderPage():
     #  ('Positive/Negative/Neutral - TextBlob', 'Happy/Sad/Angry/Fear/Surprise - text2emotion'))    
 
     st.text("")
+
+
+    ## cache so download BERT model only ONCE 
+    # @st.cache(allow_output_mutation=True)
+    # @st.cache
+
+    ### 7/13/24 this is for BERT models -- do only ONCE ###
+    class BERTClassifier(nn.Module):
+        def __init__(self, bert_model_name, num_classes):
+            super(BERTClassifier, self).__init__()
+            self.bert = BertModel.from_pretrained(bert_model_name)
+            self.dropout = nn.Dropout(0.1)
+            self.fc = nn.Linear(self.bert.config.hidden_size, num_classes)
+
+        def forward(self, input_ids, attention_mask):
+                outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+                pooled_output = outputs.pooler_output
+                x = self.dropout(pooled_output)
+                logits = self.fc(x)
+                return logits
+
+
+    ## define some variables used here
+    bert_model_name = 'bert-base-uncased'
+    num_classes = 3        
+
+
+    ## cache so download BERT model only ONCE 
+    @st.cache_resource
+
+    ## load saved trained model 
+    # if 'model' not in locals() and 'model' not in globals():
+
+    def get_bert_model():
+        # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device("cpu")
+        model  = BERTClassifier(bert_model_name, num_classes).to(device)
+        
+        model_path = 'https://drive.google.com/uc?id=1OvacWq2Vem4L7gdO0S_yteCNPKNtBpJ1'
+
+        model_name = 'sentiment_classifier.pth'
+        gdown.download(model_path, model_name)
+
+        # model.load_state_dict(torch.load(model_path, map_location=device) )
+
+        model.load_state_dict(torch.load(model_name, map_location=device) )
+        
+        model.eval()
+
+        tokenizer = BertTokenizer.from_pretrained(bert_model_name)
+
+        return device, tokenizer, model
+
+    device, tokenizer, model = get_bert_model()
+
+
+    ## when pressing Predict button ## 
     if st.button('Predict'):
         if(userText!="" and type!=None):
             st.text("")
             st.components.v1.html("""
                                 <h3 style="color: #0284c7; font-family: Source Sans Pro, sans-serif; font-size: 28px; margin-bottom: 10px; margin-top: 50px;">Result</h3>
                                 """, height=100)
-            getSentiments(userText, type)
+            getSentiments(userText, type, model, tokenizer, device)
+
+
 
