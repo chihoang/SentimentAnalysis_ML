@@ -13,6 +13,7 @@ import torch
 from torch import nn
 from transformers import BertTokenizer, BertModel
 import gdown 
+from huggingface_hub import hf_hub_download
 
 
 def plotPie(labels, values):
@@ -116,7 +117,7 @@ def getSentiments(userText, type, model, tokenizer, device):
             print("First element of preds:", preds[0].item())
             print("Preds as a NumPy array:", preds.numpy())
             print("Preds as a list:", preds.tolist())
-            
+
             # print("Mean of preds:", preds.mean().item())
             # print("Max of preds:", preds.max().item())
             # print("Min of preds:", preds.min().item())
@@ -225,14 +226,16 @@ def renderPage():
         device = torch.device("cpu")
         model  = BERTClassifier(bert_model_name, num_classes).to(device)
         
-        model_path = 'https://drive.google.com/uc?id=1OvacWq2Vem4L7gdO0S_yteCNPKNtBpJ1'
+        # model_path = 'https://drive.google.com/uc?id=1OvacWq2Vem4L7gdO0S_yteCNPKNtBpJ1'
 
-        model_name = 'sentiment_classifier.pth'
-        gdown.download(model_path, model_name)
+        # model_name = 'sentiment_classifier.pth'
+        # gdown.download(model_path, model_name)
+
+        path_model = hf_hub_download(repo_id="chih3/bert_sentiment_analysis", filename="sentiment_classifier_500K_3epoch.pth")
 
         # model.load_state_dict(torch.load(model_path, map_location=device) )
 
-        model.load_state_dict(torch.load(model_name, map_location=device) )
+        model.load_state_dict(torch.load(path_model, map_location=device) )
         
         model.eval()
 
